@@ -16,14 +16,17 @@ use crate::{
         },
         tty::tty_port::TtyPortState,
     },
-    libs::spinlock::SpinLock,
+    libs::{
+        rwlock::RwLock,
+        spinlock::{SpinLock, SpinLockGuard},
+    },
 };
 
 use super::{
     termios::Termios,
     tty_core::{TtyCore, TtyCoreData},
     tty_ldisc::TtyLdiscManager,
-    tty_port::TTY_PORTS,
+    tty_port::{DefaultTtyPort, TtyPort},
     virtual_terminal::virtual_console::CURRENT_VCNUM,
 };
 
@@ -100,11 +103,13 @@ pub struct TtyDriver {
     /// 驱动程序标志
     flags: TtyDriverFlag,
     /// pty链接此driver的入口
-    pty: Option<Arc<TtyDriver>>,
+    other_pty_driver: Option<Arc<TtyDriver>>,
     /// 具体类型的tty驱动方法
     driver_funcs: Arc<dyn TtyOperation>,
     /// 管理的tty设备列表
     ttys: SpinLock<HashMap<usize, Arc<TtyCore>>>,
+    /// 管理的端口列表
+    ports: RwLock<Vec<Arc<dyn TtyPort>>>,
     // procfs入口?
 }
 
@@ -119,6 +124,10 @@ impl TtyDriver {
         default_termios: Termios,
         driver_funcs: Arc<dyn TtyOperation>,
     ) -> Self {
+        let mut ports: Vec<Arc<dyn TtyPort>> = Vec::with_capacity(count as usize);
+        for _ in 0..count {
+            ports.push(Arc::new(DefaultTtyPort::new()))
+        }
         TtyDriver {
             driver_name: Default::default(),
             name: node_name,
@@ -130,10 +139,11 @@ impl TtyDriver {
             tty_driver_sub_type: Default::default(),
             init_termios: default_termios,
             flags: TtyDriverFlag::empty(),
-            pty: Default::default(),
+            other_pty_driver: Default::default(),
             driver_funcs,
             ttys: SpinLock::new(HashMap::new()),
             saved_termios: Vec::with_capacity(count as usize),
+            ports: RwLock::new(ports),
         }
     }
 
@@ -158,8 +168,23 @@ impl TtyDriver {
     }
 
     #[inline]
+    pub fn init_termios(&self) -> Termios {
+        self.init_termios
+    }
+
+    #[inline]
     pub fn flags(&self) -> TtyDriverFlag {
         self.flags
+    }
+
+    #[inline]
+    pub fn other_pty_driver(&self) -> Option<Arc<TtyDriver>> {
+        self.other_pty_driver.clone()
+    }
+
+    #[inline]
+    pub fn ttys(&self) -> SpinLockGuard<HashMap<usize, Arc<TtyCore>>> {
+        self.ttys.lock()
     }
 
     #[inline]
@@ -171,23 +196,18 @@ impl TtyDriver {
         };
     }
 
+    #[inline]
+    pub fn saved_termios(&self) -> &Vec<Termios> {
+        &self.saved_termios
+    }
+
     fn standard_install(&self, tty_core: Arc<TtyCore>) -> Result<(), SystemError> {
         let tty = tty_core.core();
-        let tty_index = tty.index();
-        // 初始化termios
-        if !self.flags.contains(TtyDriverFlag::TTY_DRIVER_RESET_TERMIOS) {
-            // 先查看是否有已经保存的termios
-            if let Some(t) = self.saved_termios.get(tty_index) {
-                let mut termios = t.clone();
-                termios.line = self.init_termios.line;
-                tty.set_termios(termios);
-            }
-        }
-        // TODO:设置termios波特率？
+        tty.init_termios();
 
         tty.add_count();
 
-        self.ttys.lock().insert(tty_index, tty_core);
+        self.ttys.lock().insert(tty.index(), tty_core);
 
         Ok(())
     }
@@ -217,8 +237,9 @@ impl TtyDriver {
         let core = tty.core();
 
         if core.port().is_none() {
-            TTY_PORTS[core.index()].setup_tty(Arc::downgrade(&tty));
-            tty.set_port(TTY_PORTS[core.index()].clone());
+            let ports = driver.ports.read();
+            ports[core.index()].setup_internal_tty(Arc::downgrade(&tty));
+            tty.set_port(ports[core.index()].clone());
         }
 
         TtyLdiscManager::ldisc_setup(tty.clone(), None)?;
@@ -259,10 +280,6 @@ impl TtyDriver {
 
     pub fn tty_driver_sub_type(&self) -> TtyDriverSubType {
         self.tty_driver_sub_type
-    }
-
-    pub fn init_termios(&self) -> Termios {
-        self.init_termios
     }
 }
 
@@ -369,7 +386,9 @@ pub trait TtyOperation: Sync + Send + Debug {
 
     fn flush_chars(&self, tty: &TtyCoreData);
 
-    fn put_char(&self, tty: &TtyCoreData, ch: u8) -> Result<(), SystemError>;
+    fn put_char(&self, tty: &TtyCoreData, ch: u8) -> Result<(), SystemError> {
+        Err(SystemError::ENOSYS)
+    }
 
     fn start(&self, _tty: &TtyCoreData) -> Result<(), SystemError> {
         Err(SystemError::ENOSYS)

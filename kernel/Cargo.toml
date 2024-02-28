@@ -16,11 +16,15 @@ members = [
 ]
 
 [features]
-default = ["backtrace", "kvm"]
+default = ["backtrace", "kvm", "unix98ptys"]
 # 内核栈回溯
 backtrace = []
 # kvm
 kvm = []
+# 启用unix98pty
+unix98ptys = []
+# legacy pty
+legacy_ptys = []
 
 
 # 运行时依赖项

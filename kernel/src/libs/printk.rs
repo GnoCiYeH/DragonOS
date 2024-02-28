@@ -11,8 +11,8 @@ use crate::{
     driver::{
         serial::serial8250::send_to_default_serial8250_port,
         tty::{
-            tty_driver::TtyOperation, tty_port::TTY_PORTS,
-            virtual_terminal::virtual_console::CURRENT_VCNUM,
+            tty_driver::TtyOperation,
+            virtual_terminal::{virtual_console::CURRENT_VCNUM, VIRT_CONSOLES},
         },
     },
     filesystem::procfs::{
@@ -104,8 +104,8 @@ impl PrintkWriter {
         let current_vcnum = CURRENT_VCNUM.load(Ordering::SeqCst);
         if current_vcnum != -1 {
             // tty已经初始化了之后才输出到屏幕
-            let port = TTY_PORTS[current_vcnum as usize].clone();
-            let tty = port.port_data().tty();
+            let port = VIRT_CONSOLES[current_vcnum as usize].lock_irqsave().port();
+            let tty = port.port_data().internal_tty();
             if tty.is_some() {
                 let tty = tty.unwrap();
                 let _ = tty.write(tty.core(), s.as_bytes(), s.len());

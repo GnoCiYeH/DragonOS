@@ -1,6 +1,10 @@
 use core::{fmt::Debug, sync::atomic::AtomicBool};
 
-use alloc::{string::String, sync::Arc, vec::Vec};
+use alloc::{
+    string::String,
+    sync::{Arc, Weak},
+    vec::Vec,
+};
 use system_error::SystemError;
 
 use crate::{
@@ -51,7 +55,7 @@ impl TtyCore {
             ctrl: SpinLock::new(TtyContorlInfo::default()),
             closing: AtomicBool::new(false),
             flow: SpinLock::new(TtyFlowState::default()),
-            link: None,
+            link: RwLock::new(Weak::new()),
         };
 
         return Arc::new(Self {
@@ -135,7 +139,7 @@ impl TtyCore {
         if core.driver().tty_driver_type() == TtyDriverType::Pty
             && core.driver().tty_driver_sub_type() == TtyDriverSubType::PtyMaster
         {
-            real_tty = core.link().unwrap();
+            real_tty = core.link().upgrade().unwrap();
         } else {
             real_tty = tty;
         }
@@ -236,7 +240,7 @@ pub struct TtyContorlInfo {
     pub pgid: Option<Pid>,
 
     /// packet模式下使用，目前未用到
-    pub pktstatus: u8,
+    pub pktstatus: TtyPacketStatus,
     pub packet: bool,
 }
 
@@ -245,7 +249,7 @@ impl Default for TtyContorlInfo {
         Self {
             session: None,
             pgid: None,
-            pktstatus: Default::default(),
+            pktstatus: TtyPacketStatus::empty(),
             packet: Default::default(),
         }
     }
@@ -291,7 +295,7 @@ pub struct TtyCoreData {
     /// 流控状态
     flow: SpinLock<TtyFlowState>,
     /// 链接tty
-    link: Option<Arc<TtyCore>>,
+    link: RwLock<Weak<TtyCore>>,
 }
 
 impl TtyCoreData {
@@ -326,6 +330,11 @@ impl TtyCoreData {
     }
 
     #[inline]
+    pub fn flags_write(&self) -> RwLockWriteGuard<'_, TtyFlag> {
+        self.flags.write()
+    }
+
+    #[inline]
     pub fn termios(&self) -> RwLockReadGuard<'_, Termios> {
         self.termios.read()
     }
@@ -339,6 +348,11 @@ impl TtyCoreData {
     pub fn set_termios(&self, termios: Termios) {
         let mut termios_guard = self.termios.write();
         *termios_guard = termios;
+    }
+
+    #[inline]
+    pub fn count(&self) -> usize {
+        *self.count.read()
     }
 
     #[inline]
@@ -383,8 +397,39 @@ impl TtyCoreData {
     }
 
     #[inline]
-    pub fn link(&self) -> Option<Arc<TtyCore>> {
-        self.link.clone()
+    pub fn link(&self) -> Weak<TtyCore> {
+        self.link.read().clone()
+    }
+
+    pub fn checked_link(&self) -> Result<Arc<TtyCore>, SystemError> {
+        let link = self.link().upgrade();
+        if link.is_none() {
+            return Err(SystemError::ENODEV);
+        }
+
+        Ok(link.unwrap())
+    }
+
+    pub fn set_link(&self, link: Weak<TtyCore>) {
+        *self.link.write() = link;
+    }
+
+    pub fn init_termios(&self) {
+        let tty_index = self.index();
+        let driver = self.driver();
+        // 初始化termios
+        if !driver
+            .flags()
+            .contains(super::tty_driver::TtyDriverFlag::TTY_DRIVER_RESET_TERMIOS)
+        {
+            // 先查看是否有已经保存的termios
+            if let Some(t) = driver.saved_termios().get(tty_index) {
+                let mut termios = t.clone();
+                termios.line = driver.init_termios().line;
+                self.set_termios(termios);
+            }
+        }
+        // TODO:设置termios波特率？
     }
 }
 
@@ -478,6 +523,18 @@ bitflags! {
         const LDISC_CHANGING	= 1 << 20;
         /// 终端线路驱动程序已停止
         const LDISC_HALTED	= 1 << 22;
+    }
+
+    pub struct TtyPacketStatus: u8 {
+        /* Used for packet mode */
+        const TIOCPKT_DATA		=  0;
+        const TIOCPKT_FLUSHREAD	=  1;
+        const TIOCPKT_FLUSHWRITE	=  2;
+        const TIOCPKT_STOP		=  4;
+        const TIOCPKT_START		=  8;
+        const TIOCPKT_NOSTOP		= 16;
+        const TIOCPKT_DOSTOP		= 32;
+        const TIOCPKT_IOCTL		= 64;
     }
 }
 

@@ -3,8 +3,8 @@ use core::sync::atomic::Ordering;
 use alloc::sync::Arc;
 
 use crate::driver::tty::{
-    tty_port::{TtyPort, TTY_PORTS},
-    virtual_terminal::virtual_console::CURRENT_VCNUM,
+    tty_port::TtyPort,
+    virtual_terminal::{virtual_console::CURRENT_VCNUM, VIRT_CONSOLES},
 };
 
 #[allow(dead_code)]
@@ -365,7 +365,9 @@ impl TypeOneFSMState {
 
     #[inline]
     fn current_port() -> Arc<dyn TtyPort> {
-        TTY_PORTS[CURRENT_VCNUM.load(Ordering::SeqCst) as usize].clone()
+        VIRT_CONSOLES[CURRENT_VCNUM.load(Ordering::SeqCst) as usize]
+            .lock()
+            .port()
     }
 
     /// @brief 处理Prtsc按下事件

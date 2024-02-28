@@ -143,6 +143,9 @@ impl TtyOperation for TtyConsoleDriverInner {
             tty_core.termios_write().input_mode.remove(InputMode::IUTF8);
         }
 
+        // 设置tty的端口为vc端口
+        vc_data.port().setup_internal_tty(Arc::downgrade(&tty));
+        tty.set_port(vc_data.port());
         // 加入sysfs？
 
         Ok(())
