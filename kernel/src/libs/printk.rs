@@ -2,6 +2,10 @@ use core::{
     fmt::{self, Write},
     sync::atomic::Ordering,
 };
+use core::{
+    fmt::{self, Write},
+    sync::atomic::Ordering,
+};
 
 use alloc::string::ToString;
 

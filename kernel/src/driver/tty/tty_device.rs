@@ -457,6 +457,7 @@ pub struct TtyFilePrivateData {
 /// 初始化tty设备和console子设备
 #[unified_init(INITCALL_DEVICE)]
 #[inline(never)]
+#[inline(never)]
 pub fn tty_init() -> Result<(), SystemError> {
     let tty = TtyDevice::new(
         "tty0".to_string(),
