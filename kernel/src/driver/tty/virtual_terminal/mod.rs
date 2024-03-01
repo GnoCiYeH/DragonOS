@@ -1,6 +1,10 @@
 use core::sync::atomic::Ordering;
 
-use alloc::{string::String, sync::Arc, vec::Vec};
+use alloc::{
+    string::{String, ToString},
+    sync::Arc,
+    vec::Vec,
+};
 use system_error::SystemError;
 
 use crate::{
@@ -259,7 +263,7 @@ pub struct DrawRegion {
 pub fn vty_init() -> Result<(), SystemError> {
     // 注册虚拟终端设备并将虚拟终端设备加入到文件系统
     let vc0 = TtyDevice::new(
-        "vc0",
+        "vc0".to_string(),
         IdTable::new(
             String::from("vc0"),
             Some(DeviceNumber::new(Major::TTY_MAJOR, 0)),

@@ -66,7 +66,7 @@ pub trait TtyPort: Sync + Send + Debug {
 
     /// 作为客户端的tty ports接收数据
     fn receive_buf(&self, buf: &[u8], _flags: &[u8], count: usize) -> Result<usize, SystemError> {
-        let tty = self.port_data().tty.upgrade().unwrap();
+        let tty = self.port_data().internal_tty.upgrade().unwrap();
 
         let ld = tty.ldisc();
 

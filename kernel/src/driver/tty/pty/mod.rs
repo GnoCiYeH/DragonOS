@@ -1,9 +1,29 @@
-use alloc::sync::Arc;
+use alloc::{
+    string::{String, ToString},
+    sync::Arc,
+};
 use system_error::SystemError;
+use unified_init::macros::unified_init;
+
+use crate::{
+    driver::base::{
+        char::{CharDevOps, CharDevice},
+        device::{
+            device_number::{DeviceNumber, Major},
+            device_register, IdTable,
+        },
+    },
+    filesystem::devfs::devfs_register,
+    init::initcall::INITCALL_DEVICE,
+};
+
+use self::unix98pty::{Unix98PtyDriverInner, NR_UNIX98_PTY_MAX};
 
 use super::{
+    termios::{ControlMode, InputMode, LocalMode, OutputMode, TTY_STD_TERMIOS},
     tty_core::{TtyCore, TtyCoreData, TtyFlag},
-    tty_driver::{TtyDriver, TtyDriverSubType},
+    tty_device::TtyDevice,
+    tty_driver::{TtyDriver, TtyDriverManager, TtyDriverSubType, TtyDriverType, TTY_DRIVERS},
     tty_port::{DefaultTtyPort, TtyPort},
 };
 
@@ -88,4 +108,83 @@ impl PtyCommon {
 
         Ok(())
     }
+
+    #[allow(dead_code)]
+    pub fn legacy_pty_init() -> Result<(), SystemError> {
+        Ok(())
+    }
+
+    pub fn unix98pty_init() -> Result<(), SystemError> {
+        let mut ptm_driver = TtyDriver::new(
+            NR_UNIX98_PTY_MAX,
+            "ptm",
+            0,
+            Major::UNIX98_PTY_MASTER_MAJOR,
+            0,
+            TtyDriverType::Pty,
+            TTY_STD_TERMIOS.clone(),
+            Arc::new(Unix98PtyDriverInner::new()),
+        );
+
+        ptm_driver.set_subtype(TtyDriverSubType::PtyMaster);
+        let term = ptm_driver.init_termios_mut();
+        term.input_mode = InputMode::empty();
+        term.output_mode = OutputMode::empty();
+        term.control_mode = ControlMode::B38400 | ControlMode::CS8 | ControlMode::CREAD;
+        term.local_mode = LocalMode::empty();
+        term.input_speed = 38400;
+        term.output_speed = 38400;
+
+        let mut pts_driver = TtyDriver::new(
+            NR_UNIX98_PTY_MAX,
+            "pts",
+            0,
+            Major::UNIX98_PTY_SLAVE_MAJOR,
+            0,
+            TtyDriverType::Pty,
+            TTY_STD_TERMIOS.clone(),
+            Arc::new(Unix98PtyDriverInner::new()),
+        );
+
+        pts_driver.set_subtype(TtyDriverSubType::PtySlave);
+        let term = pts_driver.init_termios_mut();
+        term.input_mode = InputMode::empty();
+        term.output_mode = OutputMode::empty();
+        term.control_mode = ControlMode::B38400 | ControlMode::CS8 | ControlMode::CREAD;
+        term.local_mode = LocalMode::empty();
+        term.input_speed = 38400;
+        term.output_speed = 38400;
+
+        let ptm = TtyDriverManager::tty_register_driver(ptm_driver)?;
+        let pts = TtyDriverManager::tty_register_driver(pts_driver)?;
+
+        ptm.set_other_pty_driver(pts.clone());
+        pts.set_other_pty_driver(ptm.clone());
+
+        let mut driver_set = TTY_DRIVERS.lock();
+        driver_set.push(ptm);
+        driver_set.push(pts);
+
+        let ptmx_dev = TtyDevice::new(
+            "ptmx".to_string(),
+            IdTable::new(
+                String::from("ptmx"),
+                Some(DeviceNumber::new(Major::TTYAUX_MAJOR, 2)),
+            ),
+        );
+
+        device_register(ptmx_dev.clone())?;
+        devfs_register("ptmx", ptmx_dev)?;
+
+        Ok(())
+    }
+}
+
+#[unified_init(INITCALL_DEVICE)]
+#[inline(never)]
+pub fn pty_init() -> Result<(), SystemError> {
+    #[cfg(feature = "unix98ptys")]
+    return PtyCommon::unix98pty_init();
+    #[cfg(feature = "legacy_ptys")]
+    return PtyCommon::legacy_pty_init();
 }

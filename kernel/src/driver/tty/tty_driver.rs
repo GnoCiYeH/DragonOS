@@ -31,7 +31,7 @@ use super::{
 };
 
 lazy_static! {
-    static ref TTY_DRIVERS: SpinLock<Vec<Arc<TtyDriver>>> = SpinLock::new(Vec::new());
+    pub static ref TTY_DRIVERS: SpinLock<Vec<Arc<TtyDriver>>> = SpinLock::new(Vec::new());
 }
 
 pub struct TtyDriverManager;
@@ -50,7 +50,7 @@ impl TtyDriverManager {
     }
 
     /// ## 注册驱动
-    pub fn tty_register_driver(mut driver: TtyDriver) -> Result<(), SystemError> {
+    pub fn tty_register_driver(mut driver: TtyDriver) -> Result<Arc<TtyDriver>, SystemError> {
         // 查看是否注册设备号
         if driver.major == Major::UNNAMED_MAJOR {
             let dev_num = CharDevOps::alloc_chardev_region(
@@ -68,11 +68,12 @@ impl TtyDriverManager {
         driver.flags |= TtyDriverFlag::TTY_DRIVER_INSTALLED;
 
         // 加入全局TtyDriver表
-        TTY_DRIVERS.lock().push(Arc::new(driver));
+        let driver = Arc::new(driver);
+        TTY_DRIVERS.lock().push(driver.clone());
 
         // TODO: 加入procfs?
 
-        Ok(())
+        Ok(driver)
     }
 }
 
@@ -103,7 +104,7 @@ pub struct TtyDriver {
     /// 驱动程序标志
     flags: TtyDriverFlag,
     /// pty链接此driver的入口
-    other_pty_driver: Option<Arc<TtyDriver>>,
+    other_pty_driver: RwLock<Option<Arc<TtyDriver>>>,
     /// 具体类型的tty驱动方法
     driver_funcs: Arc<dyn TtyOperation>,
     /// 管理的tty设备列表
@@ -173,13 +174,22 @@ impl TtyDriver {
     }
 
     #[inline]
+    pub fn init_termios_mut(&mut self) -> &mut Termios {
+        &mut self.init_termios
+    }
+
+    #[inline]
     pub fn flags(&self) -> TtyDriverFlag {
         self.flags
     }
 
     #[inline]
     pub fn other_pty_driver(&self) -> Option<Arc<TtyDriver>> {
-        self.other_pty_driver.clone()
+        self.other_pty_driver.read().clone()
+    }
+
+    pub fn set_other_pty_driver(&self, driver: Arc<TtyDriver>) {
+        *self.other_pty_driver.write() = Some(driver)
     }
 
     #[inline]
@@ -199,6 +209,11 @@ impl TtyDriver {
     #[inline]
     pub fn saved_termios(&self) -> &Vec<Termios> {
         &self.saved_termios
+    }
+
+    #[inline]
+    pub fn set_subtype(&mut self, tp: TtyDriverSubType) {
+        self.tty_driver_sub_type = tp;
     }
 
     fn standard_install(&self, tty_core: Arc<TtyCore>) -> Result<(), SystemError> {

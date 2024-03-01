@@ -73,7 +73,7 @@ impl InnerTtyDevice {
 #[derive(Debug)]
 #[cast_to([sync] Device)]
 pub struct TtyDevice {
-    name: &'static str,
+    name: String,
     id_table: IdTable,
     inner: RwLock<InnerTtyDevice>,
     kobj_state: LockedKObjectState,
@@ -82,7 +82,7 @@ pub struct TtyDevice {
 }
 
 impl TtyDevice {
-    pub fn new(name: &'static str, id_table: IdTable) -> Arc<TtyDevice> {
+    pub fn new(name: String, id_table: IdTable) -> Arc<TtyDevice> {
         let dev_num = id_table.device_number();
         let dev = TtyDevice {
             name,
@@ -94,7 +94,9 @@ impl TtyDevice {
 
         dev.inner.write().metadata.raw_dev = dev_num;
 
-        Arc::new(dev)
+        let ret = Arc::new(dev);
+
+        ret
     }
 }
 
@@ -457,7 +459,7 @@ pub struct TtyFilePrivateData {
 #[inline(never)]
 pub fn tty_init() -> Result<(), SystemError> {
     let tty = TtyDevice::new(
-        "tty0",
+        "tty0".to_string(),
         IdTable::new(
             String::from("tty0"),
             Some(DeviceNumber::new(Major::TTY_MAJOR, 0)),
@@ -465,7 +467,7 @@ pub fn tty_init() -> Result<(), SystemError> {
     );
 
     let console = TtyDevice::new(
-        "console",
+        "console".to_string(),
         IdTable::new(
             String::from("console"),
             Some(DeviceNumber::new(Major::TTYAUX_MAJOR, 1)),
@@ -499,8 +501,8 @@ pub fn tty_init() -> Result<(), SystemError> {
     // 将这两个设备注册到devfs，TODO：这里console设备应该与tty在一个设备group里面
     device_register(tty.clone())?;
     device_register(console.clone())?;
-    devfs_register(tty.name, tty)?;
-    devfs_register(console.name, console)?;
+    devfs_register(&tty.clone().name, tty)?;
+    devfs_register(&console.clone().name, console)?;
 
     serial_init()?;
     return vty_init();

@@ -13,8 +13,16 @@ use crate::{
 
 use super::PtyCommon;
 
+pub const NR_UNIX98_PTY_MAX: u32 = 128;
+
 #[derive(Debug)]
 pub struct Unix98PtyDriverInner;
+
+impl Unix98PtyDriverInner {
+    pub fn new() -> Self {
+        Self
+    }
+}
 
 impl TtyOperation for Unix98PtyDriverInner {
     fn install(&self, driver: Arc<TtyDriver>, tty: Arc<TtyCore>) -> Result<(), SystemError> {
