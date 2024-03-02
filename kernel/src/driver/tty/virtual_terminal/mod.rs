@@ -25,7 +25,7 @@ use super::{
     console::ConsoleSwitch,
     termios::{InputMode, TTY_STD_TERMIOS},
     tty_core::{TtyCore, TtyCoreData},
-    tty_device::TtyDevice,
+    tty_device::{TtyDevice, TtyType},
     tty_driver::{TtyDriver, TtyDriverManager, TtyDriverType, TtyOperation},
 };
 
@@ -268,6 +268,7 @@ pub fn vty_init() -> Result<(), SystemError> {
             String::from("vc0"),
             Some(DeviceNumber::new(Major::TTY_MAJOR, 0)),
         ),
+        TtyType::Tty,
     );
     // 注册tty设备
     // CharDevOps::cdev_add(

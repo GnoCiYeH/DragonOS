@@ -282,7 +282,7 @@ impl NTtyData {
         if self.read_cnt() > 0 {
             tty.core()
                 .read_wq()
-                .wakeup((EPollEventType::EPOLLIN | EPollEventType::EPOLLRDBAND).bits() as u64);
+                .wakeup_any((EPollEventType::EPOLLIN | EPollEventType::EPOLLRDBAND).bits() as u64);
         }
     }
 
@@ -467,9 +467,9 @@ impl NTtyData {
                 self.read_buf[ntty_buf_mask(self.read_head)] = c;
                 self.read_head += 1;
                 self.canon_head = self.read_head;
-                tty.core()
-                    .read_wq()
-                    .wakeup((EPollEventType::EPOLLIN | EPollEventType::EPOLLRDNORM).bits() as u64);
+                tty.core().read_wq().wakeup_any(
+                    (EPollEventType::EPOLLIN | EPollEventType::EPOLLRDNORM).bits() as u64,
+                );
                 return;
             }
 
@@ -480,9 +480,9 @@ impl NTtyData {
                 self.read_buf[ntty_buf_mask(self.read_head)] = c;
                 self.read_head += 1;
                 self.canon_head = self.read_head;
-                tty.core()
-                    .read_wq()
-                    .wakeup((EPollEventType::EPOLLIN | EPollEventType::EPOLLRDNORM).bits() as u64);
+                tty.core().read_wq().wakeup_any(
+                    (EPollEventType::EPOLLIN | EPollEventType::EPOLLRDNORM).bits() as u64,
+                );
                 return;
             }
 
@@ -508,9 +508,9 @@ impl NTtyData {
                 self.read_buf[ntty_buf_mask(self.read_head)] = c;
                 self.read_head += 1;
                 self.canon_head = self.read_head;
-                tty.core()
-                    .read_wq()
-                    .wakeup((EPollEventType::EPOLLIN | EPollEventType::EPOLLRDNORM).bits() as u64);
+                tty.core().read_wq().wakeup_any(
+                    (EPollEventType::EPOLLIN | EPollEventType::EPOLLRDNORM).bits() as u64,
+                );
                 return;
             }
         }

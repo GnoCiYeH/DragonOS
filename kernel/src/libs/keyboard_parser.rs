@@ -1,7 +1,5 @@
 use core::sync::atomic::Ordering;
 
-use core::sync::atomic::Ordering;
-
 use alloc::sync::Arc;
 
 use crate::driver::tty::{
@@ -339,13 +337,8 @@ impl TypeOneFSMState {
         }
 
         let mut ch = TYPE1_KEY_CODE_MAPTABLE[col as usize + 2 * index as usize];
-        let mut ch = TYPE1_KEY_CODE_MAPTABLE[col as usize + 2 * index as usize];
         if key != KeyFlag::NoneFlag {
             // kdebug!("EMIT: ch is '{}', keyflag is {:?}\n", ch as char, key);
-            if scancode_status.ctrl_l || scancode_status.ctrl_r {
-                ch = Self::to_ctrl(ch);
-            }
-            Self::emit(ch);
             if scancode_status.ctrl_l || scancode_status.ctrl_r {
                 ch = Self::to_ctrl(ch);
             }
@@ -364,18 +357,7 @@ impl TypeOneFSMState {
         };
     }
 
-    #[inline]
-    fn to_ctrl(ch: u8) -> u8 {
-        return match ch as char {
-            'a'..='z' => ch - 0x40,
-            'A'..='Z' => ch - 0x40,
-            '@'..='_' => ch - 0x40,
-            _ => ch,
-        };
-    }
-
     #[inline(always)]
-    fn emit(ch: u8) {
     fn emit(ch: u8) {
         // 发送到tty
         let _ = Self::current_port().receive_buf(&[ch], &[], 1);

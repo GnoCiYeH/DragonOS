@@ -55,7 +55,7 @@ impl TtyCore {
             ctrl: SpinLock::new(TtyContorlInfo::default()),
             closing: AtomicBool::new(false),
             flow: SpinLock::new(TtyFlowState::default()),
-            link: RwLock::new(Weak::new()),
+            link: RwLock::new(None),
         };
 
         return Arc::new(Self {
@@ -130,7 +130,7 @@ impl TtyCore {
 
         self.core()
             .write_wq
-            .wakeup(EPollEventType::EPOLLOUT.bits() as u64);
+            .wakeup_any(EPollEventType::EPOLLOUT.bits() as u64);
     }
 
     pub fn tty_mode_ioctl(tty: Arc<TtyCore>, cmd: u32, arg: usize) -> Result<usize, SystemError> {
@@ -139,7 +139,7 @@ impl TtyCore {
         if core.driver().tty_driver_type() == TtyDriverType::Pty
             && core.driver().tty_driver_sub_type() == TtyDriverSubType::PtyMaster
         {
-            real_tty = core.link().upgrade().unwrap();
+            real_tty = core.link().unwrap();
         } else {
             real_tty = tty;
         }
@@ -295,7 +295,7 @@ pub struct TtyCoreData {
     /// 流控状态
     flow: SpinLock<TtyFlowState>,
     /// 链接tty
-    link: RwLock<Weak<TtyCore>>,
+    link: RwLock<Option<Arc<TtyCore>>>,
 }
 
 impl TtyCoreData {
@@ -397,12 +397,12 @@ impl TtyCoreData {
     }
 
     #[inline]
-    pub fn link(&self) -> Weak<TtyCore> {
+    pub fn link(&self) -> Option<Arc<TtyCore>> {
         self.link.read().clone()
     }
 
     pub fn checked_link(&self) -> Result<Arc<TtyCore>, SystemError> {
-        let link = self.link().upgrade();
+        let link = self.link();
         if link.is_none() {
             return Err(SystemError::ENODEV);
         }
@@ -410,7 +410,7 @@ impl TtyCoreData {
         Ok(link.unwrap())
     }
 
-    pub fn set_link(&self, link: Weak<TtyCore>) {
+    pub fn set_link(&self, link: Option<Arc<TtyCore>>) {
         *self.link.write() = link;
     }
 
@@ -658,4 +658,12 @@ impl TtyIoctlCmd {
     pub const TIOCCBRK: u32 = 0x5428;
     /// Return the session ID of FD
     pub const TIOCGSID: u32 = 0x5429;
+    /// 设置ptl锁标记
+    pub const TIOCSPTLCK: u32 = 0x40045431;
+    /// 获取ptl锁标记
+    pub const TIOCGPTLCK: u32 = 0x80045439;
+    /// 获取packet标记
+    pub const TIOCGPKT: u32 = 0x80045438;
+    /// 获取pts index
+    pub const TIOCGPTN: u32 = 0x80045430;
 }

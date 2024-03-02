@@ -1,9 +1,5 @@
 use core::{fmt::Debug, sync::atomic::Ordering};
-use core::{fmt::Debug, sync::atomic::Ordering};
 
-use alloc::{string::String, sync::Arc, vec::Vec};
-use hashbrown::HashMap;
-use system_error::SystemError;
 use alloc::{string::String, sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 use system_error::SystemError;
@@ -248,7 +244,10 @@ impl TtyDriver {
         Ok(())
     }
 
-    fn init_tty_device(driver: Arc<TtyDriver>, index: usize) -> Result<Arc<TtyCore>, SystemError> {
+    pub fn init_tty_device(
+        driver: Arc<TtyDriver>,
+        index: usize,
+    ) -> Result<Arc<TtyCore>, SystemError> {
         let tty = TtyCore::new(driver.clone(), index);
 
         Self::driver_install_tty(driver.clone(), tty.clone())?;
@@ -267,10 +266,11 @@ impl TtyDriver {
     }
 
     /// ## 通过设备号找到对应驱动并且初始化Tty
-    pub fn open_tty(dev_num: DeviceNumber) -> Result<Arc<TtyCore>, SystemError> {
-        let (index, driver) =
-            TtyDriverManager::lookup_tty_driver(dev_num).ok_or(SystemError::ENODEV)?;
-
+    pub fn open_tty(
+        dev_num: DeviceNumber,
+        index: usize,
+        driver: Arc<TtyDriver>,
+    ) -> Result<Arc<TtyCore>, SystemError> {
         let tty = match driver.lockup_tty(index) {
             Some(tty) => {
                 // TODO: 暂时这么写，因为还没写TtyPort
