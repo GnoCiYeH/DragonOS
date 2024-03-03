@@ -185,7 +185,7 @@ pub fn ptmx_open(data: &mut FilePrivateData, mode: &FileMode) -> Result<(), Syst
         &index.to_string(),
         FileType::CharDevice,
         ModeType::from_bits_truncate(0x666),
-    )?;
+    );
 
     PTM_DRIVER.driver_funcs().open(core)?;
 

@@ -9,8 +9,8 @@ use crate::{
     arch::ipc::signal::Signal,
     driver::tty::{
         termios::{ControlCharIndex, InputMode, LocalMode, OutputMode, Termios},
-        tty_core::{EchoOperation, TtyCore, TtyCoreData, TtyFlag, TtyIoctlCmd},
-        tty_driver::{TtyDriverFlag, TtyOperation},
+        tty_core::{EchoOperation, TtyCore, TtyCoreData, TtyFlag, TtyIoctlCmd, TtyPacketStatus},
+        tty_driver::{TtyDriverFlag, TtyDriverSubType, TtyOperation},
         tty_job_control::TtyJobCtrlManager,
     },
     filesystem::vfs::file::FileMode,
@@ -775,6 +775,10 @@ impl NTtyData {
             self.read_flags.set_all(false);
             self.pushing = false;
             self.lookahead_count = 0;
+
+            if tty.core().link().is_some() {
+                self.packet_mode_flush(tty.core());
+            }
         }
     }
 
@@ -1484,6 +1488,17 @@ impl NTtyData {
         }
         Ok(1)
     }
+
+    fn packet_mode_flush(&self, tty: &TtyCoreData) {
+        let link = tty.link().unwrap();
+        if link.core().contorl_info_irqsave().packet {
+            tty.contorl_info_irqsave()
+                .pktstatus
+                .insert(TtyPacketStatus::TIOCPKT_FLUSHREAD);
+
+            link.core().read_wq().wakeup_all();
+        }
+    }
 }
 
 impl TtyLineDiscipline for NTtyLinediscipline {
@@ -1515,6 +1530,9 @@ impl TtyLineDiscipline for NTtyLinediscipline {
 
         // todo: kick worker?
         // todo: packet mode?
+        if core.link().is_some() {
+            ldata.packet_mode_flush(core);
+        }
 
         Ok(())
     }
@@ -1528,6 +1546,9 @@ impl TtyLineDiscipline for NTtyLinediscipline {
         _offset: usize,
         mode: FileMode,
     ) -> Result<usize, system_error::SystemError> {
+        if tty.core().driver().tty_driver_sub_type() == TtyDriverSubType::PtySlave {
+            panic!();
+        }
         let mut ldata;
         if mode.contains(FileMode::O_NONBLOCK) {
             let ret = self.disc_data_try_lock();

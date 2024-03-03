@@ -2,10 +2,6 @@ use core::{
     fmt::{self, Write},
     sync::atomic::Ordering,
 };
-use core::{
-    fmt::{self, Write},
-    sync::atomic::Ordering,
-};
 
 use alloc::string::ToString;
 
@@ -70,9 +66,10 @@ macro_rules! kinfo {
 #[macro_export]
 macro_rules! kwarn {
     ($($arg:tt)*) => {
-        $crate::libs::printk::Logger.log(4,format_args!("({}:{})\t {}\n", file!(), line!(),format_args!($($arg)*)));
-        $crate::libs::printk::PrintkWriter.__write_fmt(format_args!("\x1B[1;33m[ WARN ] \x1B[0m"));
-        $crate::libs::printk::PrintkWriter.__write_fmt(format_args!("({}:{})\t {}\n", file!(), line!(),format_args!($($arg)*)));
+        // $crate::libs::printk::Logger.log(4,format_args!("({}:{})\t {}\n", file!(), line!(),format_args!($($arg)*)));
+        // $crate::libs::printk::PrintkWriter.__write_fmt(format_args!("\x1B[1;33m[ WARN ] \x1B[0m"));
+        // $crate::libs::printk::PrintkWriter.__write_fmt(format_args!("({}:{})\t {}\n", file!(), line!(),format_args!($($arg)*)));
+        $crate::libs::printk::PrintkWriter.__write_fmt(format_args!(""));
     }
 }
 
