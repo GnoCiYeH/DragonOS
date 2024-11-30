@@ -41,10 +41,9 @@ unsafe extern "C" fn x86_64_do_irq(trap_frame: &mut TrapFrame, vector: u32) {
     if current_pcb_preempt_count() > 0 {
         return;
     }
+
     // 检测当前进程是否可被调度
-    if (current_pcb_flags().contains(ProcessFlags::NEED_SCHEDULE))
-        || vector == APIC_TIMER_IRQ_NUM.data()
-    {
+    if current_pcb_flags().contains(ProcessFlags::NEED_SCHEDULE) {
         __schedule(SchedMode::SM_PREEMPT);
     }
 }
