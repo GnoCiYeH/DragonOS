@@ -5,3 +5,5 @@ pub mod panic;
 pub mod sysfs;
 pub mod traceback;
 pub mod tracing;
+
+pub mod kmonitor;

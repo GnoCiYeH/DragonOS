@@ -79,6 +79,7 @@ static-keys = { version = "=0.7" }
 
 defer = "0.2.1"
 cfg-if = { version = "1.0.0" }
+miniserde = { version = "0.1.42", default-features = false }
 
 
 # target为x86_64时，使用下面的依赖
@@ -124,4 +125,4 @@ debug = true # Controls whether the compiler passes `-g`
 
 # The release profile, used for `cargo build --release`
 [profile.release]
-debug = false
+debug = true

@@ -206,6 +206,31 @@ impl InnerAddressSpace {
         return Ok(new_addr_space);
     }
 
+    #[allow(dead_code)]
+    pub fn virt_mem_usage(&self) -> usize {
+        let mut usage = 0;
+        for vma in self.mappings.vmas.iter() {
+            usage += vma.lock_irqsave().region.size;
+        }
+        return usage * MMArch::PAGE_SIZE;
+    }
+
+    #[allow(dead_code)]
+    pub fn phys_mem_usage(&self) -> usize {
+        let mut usage = 0;
+        for vma in self.mappings.vmas.iter() {
+            let vma_guard = vma.lock_irqsave();
+            for page in vma_guard.pages().map(|p| p.virt_address()) {
+                if let Some((_, flags)) = self.user_mapper.utable.translate(page) {
+                    if flags.present() {
+                        usage += MMArch::PAGE_SIZE;
+                    }
+                }
+            }
+        }
+        return usage;
+    }
+
     /// 拓展用户栈
     /// ## 参数
     ///

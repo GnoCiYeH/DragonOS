@@ -25,6 +25,7 @@ use crate::{
         procfs::procfs_register_pid,
         vfs::{file::FileDescriptorVec, MAX_PATHLEN},
     },
+    kmonitor_call,
     mm::{
         ucontext::{AddressSpace, UserStack},
         verify_area, MemoryManagementArch, VirtAddr,
@@ -138,6 +139,10 @@ impl Syscall {
         ProcessManager::current_pcb()
             .basic_mut()
             .set_name(ProcessControlBlock::generate_name(&path, &argv));
+
+        kmonitor_call!(KProcessDebugMonitor::on_execve(
+            &ProcessManager::current_pcb()
+        ));
 
         Self::do_execve(path, argv, envp, frame)?;
 

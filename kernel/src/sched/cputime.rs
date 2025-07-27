@@ -2,7 +2,9 @@ use core::sync::atomic::{compiler_fence, AtomicUsize, Ordering};
 
 use crate::{
     arch::CurrentIrqArch,
+    debug::kmonitor::cpu::KCpuStatMonitor,
     exception::InterruptArch,
+    kmonitor_call,
     process::ProcessControlBlock,
     smp::{core::smp_get_processor_id, cpu::ProcessorId},
     time::jiffies::TICK_NESC,
@@ -75,7 +77,7 @@ impl IrqTime {
 pub struct CpuTimeFunc;
 impl CpuTimeFunc {
     pub fn irqtime_account_process_tick(
-        _pcb: &Arc<ProcessControlBlock>,
+        pcb: &Arc<ProcessControlBlock>,
         _user_tick: bool,
         ticks: u64,
     ) {
@@ -88,6 +90,10 @@ impl CpuTimeFunc {
         }
 
         // TODO: update process time
+        kmonitor_call!({
+            KProcessDebugMonitor::update_process_cpu_time(pcb.pid(), cputime as usize);
+            KCpuStatMonitor::on_tick(pcb.pid(), cputime as usize);
+        });
     }
 
     pub fn account_other_time(max: u64) -> u64 {

@@ -37,6 +37,7 @@ use crate::{
         signal::RestartBlock,
         signal_types::{SigInfo, SigPending, SignalStruct},
     },
+    kmonitor_call,
     libs::{
         align::AlignedBox,
         casting::DowncastArc,
@@ -88,7 +89,6 @@ pub mod stdio;
 pub mod syscall;
 pub mod timer;
 pub mod utils;
-
 /// 系统中所有进程的pcb
 static ALL_PROCESS: SpinLock<Option<HashMap<Pid, Arc<ProcessControlBlock>>>> = SpinLock::new(None);
 
@@ -478,6 +478,7 @@ impl ProcessManager {
     }
 
     pub unsafe fn release(pid: Pid) {
+        kmonitor_call!(KProcessDebugMonitor::on_process_exit(pid));
         let pcb = ProcessManager::find(pid);
         if pcb.is_some() {
             // log::debug!("release pid {}", pid);

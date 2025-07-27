@@ -8,6 +8,7 @@ use system_error::SystemError;
 
 use crate::{
     arch::{interrupt::TrapFrame, process::arch_switch_to_user},
+    debug::kmonitor::kmonitor_thread_init,
     driver::net::e1000e::e1000e::e1000e_init,
     filesystem::vfs::core::mount_root_fs,
     namespaces::NsProxy,
@@ -40,6 +41,7 @@ pub fn initial_kernel_thread() -> i32 {
 
 fn kernel_init() -> Result<(), SystemError> {
     KernelThreadMechanism::init_stage2();
+    kmonitor_thread_init();
     kenrel_init_freeable()?;
     #[cfg(target_arch = "x86_64")]
     crate::driver::disk::ahci::ahci_init()
